@@ -18,7 +18,7 @@ interface Props {
 
 const SensorUilityCard = (props: Props) => {
   return (
-    <Card className="min-w-50">
+    <Card className="">
       <CardHeader>
         <CardTitle className="flex gap-4 items-center">
           {props.icon} {props.label}
