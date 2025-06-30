@@ -25,6 +25,7 @@
     "dotenv": "^17.0.0",
     "drizzle-orm": "^0.44.2",
     "express": "^5.1.0",
+    "greenhouse": "file:..",
     "morgan": "^1.10.0"
   },
   "devDependencies": {
