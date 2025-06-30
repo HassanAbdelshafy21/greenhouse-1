@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    // Basic
+    "target": "ES2020",              // Output modern JavaScript with async/await
+    "module": "ESNext",              // Use native ES modules
+    "moduleResolution": "Node",      // Resolve modules like Node.js
+
+    // Directories
+    "rootDir": "./src",              // Where source files are
+    "outDir": "./dist",              // Where compiled files go
+
+    // JS Interop
+    "esModuleInterop": true,         // Enable default imports from CommonJS
+    "allowSyntheticDefaultImports": true,
+
+    // Type Safety
+    "strict": true,                  // Enable all strict type-checking
+    "noImplicitAny": true,           // Disallow variables with `any`
+    "strictNullChecks": true,
+
+    // Quality-of-life
+    "resolveJsonModule": true,       // Allow importing JSON
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,            // Speeds up compilation
+
+    // Experimental
+    "experimentalDecorators": true,  // Enable if using decorators (optional)
+    "emitDecoratorMetadata": true    // Required by some ORMs like TypeORM (optional)
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
