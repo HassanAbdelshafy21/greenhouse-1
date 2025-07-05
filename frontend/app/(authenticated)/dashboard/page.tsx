@@ -13,7 +13,7 @@ import {
   RotateCcw,
   Thermometer,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 
 import {
@@ -30,14 +30,65 @@ import SensorUilityCard from "@/components/SensorUtilityCard/SensorUilityCard";
 import ActuatorControlCard from "@/components/actuatorControlCard/ActuatorControlCard";
 import { Separator } from "@/components/ui/separator";
 import Header from "@/components/header/Header";
+import CameraFeed from "./_components/CameraFeed";
 
 const Dashboard = () => {
+  /*   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const espIp = process.env.NEXT_PUBLIC_ESP_IP;
+  // OLD Way to Do Fetching
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`http://${espIp}/sensors`);
+        const json = await res.json();
+        setData(json);
+      } catch {
+        setError("Failed to connect to ESP32");
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, [espIp]); */
+
   const [fan1, setFan1] = useState(false);
   const [fan2, setFan2] = useState(false);
   const [led, setLed] = useState(false);
   const [motor, setMotor] = useState(false);
   const [pump1, setPump1] = useState(false);
   const [pump2, setPump2] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const espIp = process.env.NEXT_PUBLIC_ESP_IP;
+
+  /* Utilities Data */
+  const [temperature, setTemperature] = useState(0);
+  const [humidity, setHumidity] = useState(0);
+  const [mq135, setMq135] = useState(0);
+  const [ph, setPh] = useState(0);
+  const [distance, setDistance] = useState(0);
+
+  /* New Way to Test */
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`http://${espIp}/sensors`);
+        const json = await res.json();
+        setTemperature(json.temperature);
+        setHumidity(json.humidity);
+        setMq135(json.mq135);
+        setPh(json.ph);
+        setDistance(json.distance);
+      } catch {
+        setError("Failed to connect to ESP32");
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, [espIp]);
 
   return (
     <div className="min-h-screen w-full flex flex-col gap-8 items-center  bg-gradient-to-br from-green-50 to-emerald-100 pb-4">
@@ -61,21 +112,21 @@ const Dashboard = () => {
         <SensorUilityCard
           icon={<Thermometer />}
           label="Temperature"
-          data="24.5°C"
+          data={`${temperature}°C`}
           status="Normal"
           hint="Optimal range: 20°C - 30°C"
         />
         <SensorUilityCard
           icon={<Droplets />}
           label="Humidity"
-          data="45%"
+          data={`${humidity}%`}
           status="Normal"
           hint="Optimal range: 20% - 60%"
         />
         <SensorUilityCard
           icon={<FlaskConical />}
           label="pH Level"
-          data="6.8"
+          data={`${ph}`}
           status="Normal"
           hint="Optimal range: 6.0 - 7.5"
         />
@@ -83,7 +134,7 @@ const Dashboard = () => {
         <SensorUilityCard
           icon={<Gauge />}
           label="Water Level"
-          data="32.4 cm"
+          data={`${distance} cm`}
           status="Normal"
           hint="Optimal range: 20 cm - 40 cm"
         />
@@ -91,37 +142,14 @@ const Dashboard = () => {
         <SensorUilityCard
           icon={<Cloud />}
           label="Gas Sensor"
-          data="185 ppm"
+          data={`${mq135} ppm`}
           status="Normal"
           hint="Optimal range: 100 - 200 ppm"
         />
       </section>
 
       {/* Camera Feed */}
-      <Card className="w-full lg:w-1/2 p-6 flex flex-col justify-between">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Camera /> Plant Camera Feed
-          </CardTitle>
-          <CardDescription>Here you can see the plant growing</CardDescription>
-        </CardHeader>
-        <CardContent className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center relative overflow-hidden">
-          <Image
-            src="/placeholder.svg"
-            alt="camera feed placeholder"
-            fill
-            className="object-contain"
-          />
-          <div className="absolute top-4 left-4">
-            <Badge variant="secondary" className="bg-red-500 text-white">
-              ● LIVE
-            </Badge>
-          </div>
-          <div className="absolute bottom-4 right-4 text-white text-sm bg-black/50 px-2 py-1 rounded">
-            {new Date().toLocaleTimeString()}
-          </div>
-        </CardContent>
-      </Card>
+     <CameraFeed />
 
       {/* Actuator Controls */}
       <section className="flex flex-wrap gap-4 w-[60%] items-center justify-center">
@@ -130,8 +158,8 @@ const Dashboard = () => {
           actuatorName="Fan 1"
           status={fan1}
           onToggle={() => {
-            setFan1(!fan1)
-            console.log(fan1)
+            setFan1(!fan1);
+            console.log(fan1);
           }}
         />
         <ActuatorControlCard
@@ -139,8 +167,8 @@ const Dashboard = () => {
           actuatorName="Fan 2"
           status={fan2}
           onToggle={() => {
-            setFan2(!fan2)
-            console.log(fan2)
+            setFan2(!fan2);
+            console.log(fan2);
           }}
         />
         <ActuatorControlCard
@@ -148,8 +176,8 @@ const Dashboard = () => {
           actuatorName="LED"
           status={led}
           onToggle={() => {
-            setLed(!led)
-            console.log(led)
+            setLed(!led);
+            console.log(led);
           }}
         />
         <ActuatorControlCard
@@ -157,8 +185,8 @@ const Dashboard = () => {
           actuatorName="Motor"
           status={motor}
           onToggle={() => {
-            setMotor(!motor)
-            console.log(motor)
+            setMotor(!motor);
+            console.log(motor);
           }}
         />
         <ActuatorControlCard
@@ -166,8 +194,8 @@ const Dashboard = () => {
           actuatorName="Pump 1"
           status={pump1}
           onToggle={() => {
-            setPump1(!pump1)
-            console.log(pump1)
+            setPump1(!pump1);
+            console.log(pump1);
           }}
         />
         <ActuatorControlCard
@@ -175,8 +203,8 @@ const Dashboard = () => {
           actuatorName="Pump 2"
           status={pump2}
           onToggle={() => {
-            setPump2(!pump2)
-            console.log(pump2)
+            setPump2(!pump2);
+            console.log(pump2);
           }}
         />
       </section>
