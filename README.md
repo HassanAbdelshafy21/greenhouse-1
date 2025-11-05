@@ -18,7 +18,6 @@ A comprehensive IoT solution for automated greenhouse monitoring and control, fe
 - [API Documentation](#api-documentation)
 - [Usage Guide](#usage-guide)
 - [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
 
 ---
 
