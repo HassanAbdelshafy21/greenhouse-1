@@ -13,13 +13,9 @@ import {
   RotateCcw,
   Thermometer,
   Settings,
-  Home,
-  ChevronLeft,
-  ChevronRight,
   Square,
   Target,
   Zap,
-  Rocket,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
@@ -79,8 +75,6 @@ interface SystemStatus {
   pump2?: string; // "1" or "0"
   led?: string;   // "1" or "0"
   stepper_enabled?: string; // "1" or "0"
-  stepper_auto?: string; // "1" or "0"
-  stepper_position?: string; // position as string
   wifiConnected?: boolean;
 }
 
@@ -93,11 +87,7 @@ const Dashboard = () => {
 
   // Stepper motor states
   const [stepperEnabled, setStepperEnabled] = useState(false);
-  const [stepperAuto, setStepperAuto] = useState(true); // Auto mode state
-  const [stepperPosition, setStepperPosition] = useState(0);
-  const [stepperSpeed, setStepperSpeed] = useState(1000);
-  const [stepperAcceleration, setStepperAcceleration] = useState(500);
-  const [targetPosition, setTargetPosition] = useState(0);
+  const [moveDistance, setMoveDistance] = useState(10); // Distance to move in mm
   
   // Connection states
   const [error, setError] = useState<string | null>(null);
@@ -227,9 +217,6 @@ const Dashboard = () => {
       setPh(systemStatus.ph || 0);
       setDistance(systemStatus.distance || 0);
 
-      // Update stepper position (always sync this)
-      setStepperPosition(parseInt(systemStatus.stepper_position || "0", 10));
-
       // Update device states from ESP32 (sync with actual hardware state)
       // Only sync if no recent user action to prevent conflicts
       const now = Date.now();
@@ -241,7 +228,6 @@ const Dashboard = () => {
         setPump2(systemStatus.pump2 === "0");
         setLed(systemStatus.led === "0");
         setStepperEnabled(systemStatus.stepper_enabled === "1");
-        setStepperAuto(systemStatus.stepper_auto === "1");
         addDebugMessage(`🔄 Device states synced from ESP32`);
       } else {
         addDebugMessage(`⏸️ Skipping state sync (${Math.ceil((USER_ACTION_GRACE_PERIOD - timeSinceUserAction) / 1000)}s remaining)`);
@@ -327,83 +313,13 @@ const Dashboard = () => {
     }
   };
 
-  const moveStepperLeft = async () => {
-    if (!stepperEnabled) {
-      addDebugMessage(`❌ Stepper not enabled - Enable it first!`);
-      return;
-    }
-
-    // Rate limiting check
-    const now = Date.now();
-    if (now - lastCommandTime < COMMAND_COOLDOWN) {
-      addDebugMessage(`⏳ Rate limit: Please wait ${Math.ceil((COMMAND_COOLDOWN - (now - lastCommandTime)) / 1000)}s`);
-      return;
-    }
-    setLastCommandTime(now);
-    setLastUserAction(now);
-
-    addDebugMessage(`⬅️ LEFT button pressed - Moving 200 steps left (direct stepping)`);
-
-    try {
-      const url = `http://${espIp}/api/control?stepper_move=left`;
-      const res = await fetch(url, { method: 'GET' });
-
-      if (res.ok) {
-        addDebugMessage(`✅ LEFT movement complete! Check Serial Monitor for details.`);
-        setError(null);
-      } else {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    } catch (err) {
-      const errorMessage = `Stepper left error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
-      setError(errorMessage);
-    }
-  };
-
-  const moveStepperRight = async () => {
-    if (!stepperEnabled) {
-      addDebugMessage(`❌ Stepper not enabled - Enable it first!`);
-      return;
-    }
-
-    // Rate limiting check
-    const now = Date.now();
-    if (now - lastCommandTime < COMMAND_COOLDOWN) {
-      addDebugMessage(`⏳ Rate limit: Please wait ${Math.ceil((COMMAND_COOLDOWN - (now - lastCommandTime)) / 1000)}s`);
-      return;
-    }
-    setLastCommandTime(now);
-    setLastUserAction(now);
-
-    addDebugMessage(`➡️ RIGHT button pressed - Moving 200 steps right (direct stepping)`);
-
-    try {
-      const url = `http://${espIp}/api/control?stepper_move=right`;
-      const res = await fetch(url, { method: 'GET' });
-
-      if (res.ok) {
-        addDebugMessage(`✅ RIGHT movement complete! Check Serial Monitor for details.`);
-        setError(null);
-      } else {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    } catch (err) {
-      const errorMessage = `Stepper right error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
-      setError(errorMessage);
-    }
-  };
-
-  // HOME button removed - not needed
-
-  const moveToPosition = async () => {
+  const moveStepperForward = async () => {
     if (!stepperEnabled) {
       addDebugMessage(`❌ Stepper not enabled`);
+      setError("Stepper not enabled. Enable it first!");
       return;
     }
 
-    // Rate limiting check
     const now = Date.now();
     if (now - lastCommandTime < COMMAND_COOLDOWN) {
       addDebugMessage(`⏳ Rate limit: Please wait`);
@@ -412,161 +328,59 @@ const Dashboard = () => {
     setLastCommandTime(now);
     setLastUserAction(now);
 
-    addDebugMessage(`📍 Moving to position: ${targetPosition}`);
+    addDebugMessage(`➡️ Moving forward ${moveDistance}mm`);
 
     try {
-      const url = `http://${espIp}/api/control?stepper_position=${targetPosition}`;
+      const url = `http://${espIp}/api/control?stepper_move=${moveDistance}`;
       const res = await fetch(url, { method: 'GET' });
 
       if (res.ok) {
-        addDebugMessage(`✅ Moving to position ${targetPosition}`);
+        addDebugMessage(`✅ Moved forward ${moveDistance}mm`);
         setError(null);
       } else {
         throw new Error(`HTTP ${res.status}`);
       }
     } catch (err) {
-      const errorMessage = `Position move error: ${err}`;
+      const errorMessage = `Forward move error: ${err}`;
       addDebugMessage(`❌ ${errorMessage}`);
       setError(errorMessage);
     }
   };
 
-  const setMotorSpeed = async (speed: number) => {
-    addDebugMessage(`⚡ Setting motor speed: ${speed}`);
-
-    try {
-      const url = `http://${espIp}/api/control?stepper_speed=${speed}`;
-      const res = await fetch(url, { method: 'GET' });
-
-      if (res.ok) {
-        setStepperSpeed(speed);
-        setLastUserAction(Date.now());
-        addDebugMessage(`✅ Speed set to ${speed}`);
-        setError(null);
-      } else {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    } catch (err) {
-      const errorMessage = `Speed setting error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
-      setError(errorMessage);
-    }
-  };
-
-  const setMotorAcceleration = async (acceleration: number) => {
-    addDebugMessage(`🚀 Setting motor acceleration: ${acceleration}`);
-
-    try {
-      const url = `http://${espIp}/api/control?stepper_acceleration=${acceleration}`;
-      const res = await fetch(url, { method: 'GET' });
-
-      if (res.ok) {
-        setStepperAcceleration(acceleration);
-        setLastUserAction(Date.now());
-        addDebugMessage(`✅ Acceleration set to ${acceleration}`);
-        setError(null);
-      } else {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    } catch (err) {
-      const errorMessage = `Acceleration setting error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
-      setError(errorMessage);
-    }
-  };
-
-  const stopMotor = async () => {
-    addDebugMessage(`🛑 Stopping motor`);
-
-    try {
-      const url = `http://${espIp}/api/control?stepper_stop=1`;
-      const res = await fetch(url, { method: 'GET' });
-
-      if (res.ok) {
-        setLastUserAction(Date.now());
-        addDebugMessage(`✅ Motor stopped`);
-        setError(null);
-      } else {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    } catch (err) {
-      const errorMessage = `Stop motor error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
-      setError(errorMessage);
-    }
-  };
-
-  const toggleAutoMode = async () => {
-    const newState = !stepperAuto;
-    addDebugMessage(`🔄 Auto mode toggle: ${stepperAuto} → ${newState}`);
-
-    try {
-      const url = `http://${espIp}/api/control?stepper_auto=${newState ? "1" : "0"}`;
-      const res = await fetch(url, { method: 'GET' });
-
-      if (res.ok) {
-        setStepperAuto(newState);
-        setLastUserAction(Date.now());
-        addDebugMessage(`✅ Auto mode ${newState ? 'enabled' : 'disabled'}`);
-        setError(null);
-      } else {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    } catch (err) {
-      const errorMessage = `Auto mode error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
-      setError(errorMessage);
-    }
-  };
-
-  const runHardwareTest = async () => {
-    addDebugMessage(`🔧 Running hardware test...`);
-
-    try {
-      const url = `http://${espIp}/api/test`;
-      const res = await fetch(url, { method: 'GET' });
-
-      if (res.ok) {
-        const result = await res.text();
-        addDebugMessage(`✅ Hardware test initiated: ${result}`);
-        addDebugMessage(`📺 Check Serial Monitor for test results`);
-        setError(null);
-      } else {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    } catch (err) {
-      const errorMessage = `Hardware test error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
-      setError(errorMessage);
-    }
-  };
-
-  const runDirectStep = async (steps: number) => {
+  const moveStepperBackward = async () => {
     if (!stepperEnabled) {
       addDebugMessage(`❌ Stepper not enabled`);
+      setError("Stepper not enabled. Enable it first!");
       return;
     }
 
-    addDebugMessage(`⚡ Running direct step test: ${steps} steps`);
+    const now = Date.now();
+    if (now - lastCommandTime < COMMAND_COOLDOWN) {
+      addDebugMessage(`⏳ Rate limit: Please wait`);
+      return;
+    }
+    setLastCommandTime(now);
+    setLastUserAction(now);
+
+    addDebugMessage(`⬅️ Moving backward ${moveDistance}mm`);
 
     try {
-      const url = `http://${espIp}/api/control?direct_step=${steps}`;
+      const url = `http://${espIp}/api/control?stepper_move_back=${moveDistance}`;
       const res = await fetch(url, { method: 'GET' });
 
       if (res.ok) {
-        const result = await res.text();
-        addDebugMessage(`✅ Direct step complete: ${result}`);
-        addDebugMessage(`🎯 If motor moved, AccelStepper is the problem`);
+        addDebugMessage(`✅ Moved backward ${moveDistance}mm`);
         setError(null);
       } else {
         throw new Error(`HTTP ${res.status}`);
       }
     } catch (err) {
-      const errorMessage = `Direct step error: ${err}`;
+      const errorMessage = `Backward move error: ${err}`;
       addDebugMessage(`❌ ${errorMessage}`);
       setError(errorMessage);
     }
   };
+
 
   // Group control functions
   const handleAllPumpsOn = async () => {
@@ -745,10 +559,10 @@ const Dashboard = () => {
         />
         <SensorUtilityCard
           icon={<Settings />}
-          label="Stepper Position"
-          data={`${stepperPosition} steps`}
-          status={stepperEnabled ? (stepperAuto ? "Auto Mode" : "Manual") : "Disabled"}
-          hint={`Motor is ${stepperEnabled ? (stepperAuto ? 'auto mode' : 'manual mode') : 'disabled'}`}
+          label="Stepper Motor"
+          data={stepperEnabled ? "Enabled" : "Disabled"}
+          status={stepperEnabled ? "Ready" : "Disabled"}
+          hint={`Motor is ${stepperEnabled ? 'ready for manual control' : 'disabled'}`}
         />
       </section>
 
@@ -789,89 +603,49 @@ const Dashboard = () => {
         />
       </section>
 
-      {/* Enhanced Stepper Motor Controls */}
+      {/* Stepper Motor Controls */}
       {stepperEnabled && (
         <section className="flex flex-wrap gap-4 justify-center items-start">
           {/* Manual Movement Controls */}
-          <div className="bg-white rounded-lg shadow-md p-4 min-w-[300px]">
+          <div className="bg-white rounded-lg shadow-md p-4 min-w-[350px]">
             <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <Target className="w-4 h-4" />
-              Manual Controls
+              Manual Movement Controls
             </h3>
 
-            {/* LEFT and RIGHT buttons */}
-            <div className="flex items-center justify-center gap-4 mb-4">
-              <button
-                onClick={moveStepperLeft}
-                className="px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2 font-bold text-lg shadow-md transition-all hover:scale-105"
-                aria-label="Move motor left 200 steps"
-              >
-                <ChevronLeft className="w-6 h-6" />
-                LEFT
-              </button>
-              <button
-                onClick={moveStepperRight}
-                className="px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2 font-bold text-lg shadow-md transition-all hover:scale-105"
-                aria-label="Move motor right 200 steps"
-              >
-                RIGHT
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Position display */}
-            <div className="text-center mb-4 p-3 bg-gray-100 rounded">
-              <p className="text-xs text-gray-600 mb-1">Current Position</p>
-              <p className="text-2xl font-bold text-gray-800">{stepperPosition}</p>
-              <p className="text-xs text-gray-500">steps</p>
+            {/* Distance input */}
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-2">
+                Distance to move (mm):
+              </label>
+              <input
+                type="number"
+                value={moveDistance}
+                onChange={(e) => setMoveDistance(parseFloat(e.target.value) || 0)}
+                min="1"
+                max="100"
+                step="1"
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Range: 1-100mm</p>
             </div>
 
             {/* Control buttons */}
-            <div className="flex justify-center gap-2">
+            <div className="flex flex-col gap-2">
               <button
-                onClick={stopMotor}
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 flex items-center gap-2 text-sm"
-                aria-label="Stop motor immediately"
+                onClick={moveStepperForward}
+                className="w-full px-4 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center gap-2"
+                aria-label="Move stepper forward"
               >
-                <Square className="w-4 h-4" />
-                STOP
+                ➡️ Move Forward {moveDistance}mm
               </button>
               <button
-                onClick={toggleAutoMode}
-                className={`px-4 py-2 rounded flex items-center gap-2 text-sm ${
-                  stepperAuto
-                    ? 'bg-orange-500 text-white hover:bg-orange-600'
-                    : 'bg-gray-500 text-white hover:bg-gray-600'
-                }`}
-                aria-label="Toggle auto mode"
+                onClick={moveStepperBackward}
+                className="w-full px-4 py-3 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center justify-center gap-2"
+                aria-label="Move stepper backward"
               >
-                <RotateCcw className="w-4 h-4" />
-                {stepperAuto ? 'Disable Auto' : 'Enable Auto'}
+                ⬅️ Move Backward {moveDistance}mm
               </button>
-            </div>
-          </div>
-
-          {/* Auto Mode Status */}
-          <div className="bg-white rounded-lg shadow-md p-4 min-w-[300px]">
-            <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <Activity className="w-4 h-4" />
-              Auto Mode Status
-            </h3>
-            <div className="flex items-center justify-center gap-3 mb-3">
-              <div className={`w-4 h-4 rounded-full ${stepperAuto ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
-              <span className="text-lg font-semibold">
-                {stepperAuto ? '🔄 Running' : 'Manual Mode'}
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 text-center mb-3">
-              {stepperAuto
-                ? 'Motor automatically moves between -100mm and +100mm'
-                : 'Use manual controls to move motor'}
-            </p>
-            <div className="text-center">
-              <p className="text-xs text-gray-400">
-                {stepperAuto ? 'Click "Disable Auto" to use manual controls' : 'Click "Enable Auto" for automatic movement'}
-              </p>
             </div>
           </div>
 
@@ -879,71 +653,37 @@ const Dashboard = () => {
           <div className="bg-white rounded-lg shadow-md p-4 min-w-[250px]">
             <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <Zap className="w-4 h-4" />
-              Motor Settings
+              Motor Configuration
             </h3>
             <div className="space-y-3 text-sm text-gray-600">
               <div className="flex justify-between">
-                <span>Speed:</span>
-                <span className="font-semibold">200 steps/sec</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Acceleration:</span>
-                <span className="font-semibold">100 steps/sec²</span>
+                <span>Steps per mm:</span>
+                <span className="font-semibold">400 steps/mm</span>
               </div>
               <div className="flex justify-between">
                 <span>Travel Range:</span>
-                <span className="font-semibold">±100mm</span>
+                <span className="font-semibold">100mm</span>
               </div>
               <div className="flex justify-between">
-                <span>Microsteps:</span>
-                <span className="font-semibold">Full Step (1:1)</span>
+                <span>Speed Delay:</span>
+                <span className="font-semibold">250 μs</span>
               </div>
               <div className="flex justify-between">
                 <span>Mode:</span>
-                <span className="font-semibold text-green-600">Max Torque</span>
+                <span className="font-semibold text-green-600">Direct Pin Control</span>
               </div>
+              <div className="flex justify-between">
+                <span>Control:</span>
+                <span className="font-semibold text-blue-600">Blocking</span>
+              </div>
+            </div>
+            <div className="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded">
+              <p className="text-xs text-yellow-800">
+                ⚠️ Motor movement is blocking. Wait for completion before next command.
+              </p>
             </div>
           </div>
 
-          {/* Hardware Test Card */}
-          <div className="bg-white rounded-lg shadow-md p-4 min-w-[250px]">
-            <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <Rocket className="w-4 h-4" />
-              Diagnostics
-            </h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Test motor hardware and troubleshoot issues
-            </p>
-            <div className="space-y-2">
-              <button
-                onClick={runHardwareTest}
-                className="w-full px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center justify-center gap-2 text-sm"
-                aria-label="Run hardware test"
-              >
-                <Rocket className="w-4 h-4" />
-                Hardware Test
-              </button>
-              <button
-                onClick={() => runDirectStep(100)}
-                className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center justify-center gap-2 text-sm"
-                aria-label="Direct step test 100 steps"
-              >
-                <Zap className="w-4 h-4" />
-                Direct Step (100)
-              </button>
-              <button
-                onClick={() => runDirectStep(-100)}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center justify-center gap-2 text-sm"
-                aria-label="Direct step test -100 steps"
-              >
-                <Zap className="w-4 h-4" />
-                Direct Step (-100)
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Direct step bypasses AccelStepper
-            </p>
-          </div>
         </section>
       )}
 
@@ -1010,8 +750,7 @@ const Dashboard = () => {
           <p>Pump 2: {pump2 ? 'ON' : 'OFF'}</p>
           <p>LED: {led ? 'ON' : 'OFF'}</p>
           <p>Stepper: {stepperEnabled ? 'ENABLED' : 'DISABLED'}</p>
-          <p>Stepper Auto: {stepperAuto ? 'ON' : 'OFF'}</p>
-          <p>Stepper Position: {stepperPosition}</p>
+          <p>Move Distance: {moveDistance}mm</p>
           <p className="text-xs text-gray-500">Note: ESP32 uses inverted logic (0=ON, 1=OFF)</p>
           {lastUpdate && (
             <p>Last Update: {lastUpdate.toLocaleString()}</p>
