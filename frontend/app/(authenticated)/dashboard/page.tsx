@@ -40,7 +40,6 @@ import CameraFeed from "./_components/CameraFeed";
 const COMMAND_COOLDOWN = 1000; // 1 second between commands
 const USER_ACTION_GRACE_PERIOD = 3000; // 3 seconds after user action
 const DATA_FETCH_INTERVAL = 5000; // 5 seconds
-const DEBUG_MESSAGE_LIMIT = 10; // Keep last 10 debug messages
 const STEPPER_MIN_POSITION = -3200;
 const STEPPER_MAX_POSITION = 3200;
 const STEPPER_MIN_SPEED = 100;
@@ -93,7 +92,6 @@ const Dashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
   // Rate limiting state
   const [lastCommandTime, setLastCommandTime] = useState<number>(0);
@@ -111,14 +109,6 @@ const Dashboard = () => {
   const [ph, setPh] = useState(0);
   const [distance, setDistance] = useState(0);
 
-  // Add debug message function
-  const addDebugMessage = useCallback((message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const debugMessage = `${timestamp}: ${message}`;
-    console.log(debugMessage);
-    setDebugInfo(prev => [...prev.slice(-(DEBUG_MESSAGE_LIMIT - 1)), debugMessage]);
-  }, []);
-
   // Validate sensor data ranges
   const validateSensorData = (data: Partial<SensorData>): SensorData => {
     return {
@@ -135,20 +125,16 @@ const Dashboard = () => {
     // Rate limiting check
     const now = Date.now();
     if (now - lastCommandTime < COMMAND_COOLDOWN) {
-      addDebugMessage(`⏳ Rate limit: Please wait ${Math.ceil((COMMAND_COOLDOWN - (now - lastCommandTime)) / 1000)}s`);
       return false;
     }
     setLastCommandTime(now);
     setLastUserAction(now); // Mark user action time
 
     const targetState = state ? "0" : "1";  // Inverted: UI ON sends "0" to ESP32
-    addDebugMessage(`🚀 Sending ${device} → ${targetState} (UI: ${state ? "ON" : "OFF"})`);
 
     try {
       // Use new ESP32 control API with query parameters
       const url = `http://${espIp}/api/control?${device}=${targetState}`;
-
-      addDebugMessage(`📡 GET ${url}`);
 
       const res = await fetch(url, {
         method: 'GET',
@@ -156,8 +142,6 @@ const Dashboard = () => {
           'Accept': 'text/plain',
         },
       });
-
-      addDebugMessage(`📬 Response: ${res.status} ${res.statusText}`);
 
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -170,15 +154,12 @@ const Dashboard = () => {
         throw new Error(`Unexpected response: ${result}`);
       }
 
-      addDebugMessage(`✅ Success: ${result}`);
-
       // Clear any previous errors
       setError(null);
       return true;
 
     } catch (err) {
       const errorMessage = `Failed to control ${device}: ${err}`;
-      addDebugMessage(`❌ Error: ${errorMessage}`);
       setError(errorMessage);
       return false;
     }
@@ -188,7 +169,6 @@ const Dashboard = () => {
   const fetchSensorData = useCallback(async () => {
     try {
       const url = `http://${espIp}/api/status`;
-      addDebugMessage(`📊 Fetching system status from ${url}`);
 
       const res = await fetch(url, {
         method: 'GET',
@@ -208,8 +188,6 @@ const Dashboard = () => {
         throw new Error('Invalid system status format received');
       }
 
-      addDebugMessage(`📈 System status received: ${Object.keys(systemStatus).length} fields`);
-
       // Update sensor data
       setTemperature(systemStatus.temperature || 0);
       setHumidity(systemStatus.humidity || 0);
@@ -228,9 +206,6 @@ const Dashboard = () => {
         setPump2(systemStatus.pump2 === "0");
         setLed(systemStatus.led === "0");
         setStepperEnabled(systemStatus.stepper_enabled === "1");
-        addDebugMessage(`🔄 Device states synced from ESP32`);
-      } else {
-        addDebugMessage(`⏸️ Skipping state sync (${Math.ceil((USER_ACTION_GRACE_PERIOD - timeSinceUserAction) / 1000)}s remaining)`);
       }
 
       // Update connection status
@@ -238,61 +213,49 @@ const Dashboard = () => {
       setError(null);
       setLastUpdate(new Date());
 
-      addDebugMessage(`📊 ESP32 states: Fan=${systemStatus.fan}, Pump1=${systemStatus.pump1}, Pump2=${systemStatus.pump2}, LED=${systemStatus.led}`);
-
     } catch (err) {
       const errorMessage = `Failed to fetch system status: ${err}`;
-      addDebugMessage(`❌ System status error: ${errorMessage}`);
       setError(errorMessage);
       setIsConnected(false);
     }
-  }, [espIp, addDebugMessage, lastUserAction]);
+  }, [espIp, lastUserAction]);
 
   // Device control functions with state management
   const toggleFan = async () => {
     const newState = !fan;
-    addDebugMessage(`🌀 Fan toggle: ${fan} → ${newState}`);
     const success = await sendDeviceCommand("fan", newState);
     if (success) {
       setFan(newState);
-      addDebugMessage(`✅ Fan state updated locally`);
     }
   };
 
   const togglePump1 = async () => {
     const newState = !pump1;
-    addDebugMessage(`🚿 Pump 1 toggle: ${pump1} → ${newState}`);
     const success = await sendDeviceCommand("pump1", newState);
     if (success) {
       setPump1(newState);
-      addDebugMessage(`✅ Pump 1 state updated locally`);
     }
   };
 
   const toggleLed = async () => {
     const newState = !led;
-    addDebugMessage(`💡 LED toggle: ${led} → ${newState}`);
     const success = await sendDeviceCommand("led", newState);
     if (success) {
       setLed(newState);
-      addDebugMessage(`✅ LED state updated locally`);
     }
   };
 
   const togglePump2 = async () => {
     const newState = !pump2;
-    addDebugMessage(`🚰 Pump 2 toggle: ${pump2} → ${newState}`);
     const success = await sendDeviceCommand("pump2", newState);
     if (success) {
       setPump2(newState);
-      addDebugMessage(`✅ Pump 2 state updated locally`);
     }
   };
 
   // Stepper motor control functions
   const toggleStepperEnable = async () => {
     const newState = !stepperEnabled;
-    addDebugMessage(`⚙️ Stepper enable toggle: ${stepperEnabled} → ${newState}`);
 
     try {
       const url = `http://${espIp}/api/control?stepper_enable=${newState ? "1" : "0"}`;
@@ -301,82 +264,68 @@ const Dashboard = () => {
       if (res.ok) {
         setStepperEnabled(newState);
         setLastUserAction(Date.now());
-        addDebugMessage(`✅ Stepper enable updated: ${newState}`);
         setError(null);
       } else {
         throw new Error(`HTTP ${res.status}`);
       }
     } catch (err) {
       const errorMessage = `Stepper enable error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
       setError(errorMessage);
     }
   };
 
   const moveStepperForward = async () => {
     if (!stepperEnabled) {
-      addDebugMessage(`❌ Stepper not enabled`);
       setError("Stepper not enabled. Enable it first!");
       return;
     }
 
     const now = Date.now();
     if (now - lastCommandTime < COMMAND_COOLDOWN) {
-      addDebugMessage(`⏳ Rate limit: Please wait`);
       return;
     }
     setLastCommandTime(now);
     setLastUserAction(now);
-
-    addDebugMessage(`➡️ Moving forward ${moveDistance}mm`);
 
     try {
       const url = `http://${espIp}/api/control?stepper_move=${moveDistance}`;
       const res = await fetch(url, { method: 'GET' });
 
       if (res.ok) {
-        addDebugMessage(`✅ Moved forward ${moveDistance}mm`);
         setError(null);
       } else {
         throw new Error(`HTTP ${res.status}`);
       }
     } catch (err) {
       const errorMessage = `Forward move error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
       setError(errorMessage);
     }
   };
 
   const moveStepperBackward = async () => {
     if (!stepperEnabled) {
-      addDebugMessage(`❌ Stepper not enabled`);
       setError("Stepper not enabled. Enable it first!");
       return;
     }
 
     const now = Date.now();
     if (now - lastCommandTime < COMMAND_COOLDOWN) {
-      addDebugMessage(`⏳ Rate limit: Please wait`);
       return;
     }
     setLastCommandTime(now);
     setLastUserAction(now);
-
-    addDebugMessage(`⬅️ Moving backward ${moveDistance}mm`);
 
     try {
       const url = `http://${espIp}/api/control?stepper_move_back=${moveDistance}`;
       const res = await fetch(url, { method: 'GET' });
 
       if (res.ok) {
-        addDebugMessage(`✅ Moved backward ${moveDistance}mm`);
         setError(null);
       } else {
         throw new Error(`HTTP ${res.status}`);
       }
     } catch (err) {
       const errorMessage = `Backward move error: ${err}`;
-      addDebugMessage(`❌ ${errorMessage}`);
       setError(errorMessage);
     }
   };
@@ -384,25 +333,20 @@ const Dashboard = () => {
 
   // Group control functions
   const handleAllPumpsOn = async () => {
-    addDebugMessage(`🚿 All pumps ON requested`);
     const success1 = await sendDeviceCommand("pump1", true);
     const success2 = await sendDeviceCommand("pump2", true);
     if (success1) setPump1(true);
     if (success2) setPump2(true);
-    addDebugMessage(`🚿 All pumps result: Pump1=${success1}, Pump2=${success2}`);
   };
 
   const handleAllPumpsOff = async () => {
-    addDebugMessage(`🔇 All pumps OFF requested`);
     const success1 = await sendDeviceCommand("pump1", false);
     const success2 = await sendDeviceCommand("pump2", false);
     if (success1) setPump1(false);
     if (success2) setPump2(false);
-    addDebugMessage(`🔇 All pumps result: Pump1=${success1}, Pump2=${success2}`);
   };
 
   const handleAllOff = async () => {
-    addDebugMessage(`🚨 EMERGENCY ALL OFF requested`);
     const results = await Promise.all([
       sendDeviceCommand("fan", false),
       sendDeviceCommand("pump1", false),
@@ -414,23 +358,17 @@ const Dashboard = () => {
     if (results[1]) setPump1(false);
     if (results[2]) setPump2(false);
     if (results[3]) setLed(false);
-    
-    addDebugMessage(`🚨 Emergency stop result: ${results.filter(r => r).length}/${results.length} succeeded`);
   };
 
   // Connection test function
   const testConnection = async () => {
-    addDebugMessage(`🔧 Testing ESP32 connection...`);
     try {
       const response = await fetch(`http://${espIp}/api/status`);
       if (response.ok) {
-        addDebugMessage(`✅ ESP32 connection test successful`);
         fetchSensorData();
-      } else {
-        addDebugMessage(`❌ ESP32 connection test failed: ${response.status}`);
       }
     } catch (err) {
-      addDebugMessage(`❌ ESP32 connection test error: ${err}`);
+      setError(`Connection test failed: ${err}`);
     }
   };
 
@@ -439,11 +377,8 @@ const Dashboard = () => {
     if (!espIp) {
       const errorMsg = "ESP32 IP not configured. Please set NEXT_PUBLIC_ESP_IP in your .env.local file";
       setError(errorMsg);
-      addDebugMessage(`❌ ${errorMsg}`);
       return;
     }
-
-    addDebugMessage(`🚀 Dashboard initialized with ESP32 IP: ${espIp}`);
 
     // Initial fetch
     fetchSensorData();
@@ -454,9 +389,8 @@ const Dashboard = () => {
     // Cleanup interval on component unmount
     return () => {
       clearInterval(interval);
-      addDebugMessage(`🔄 Data fetching interval cleared`);
     };
-  }, [espIp, fetchSensorData, addDebugMessage]);
+  }, [espIp, fetchSensorData]);
 
   // Helper function to get sensor status
   const getSensorStatus = (value: number, min: number, max: number) => {
@@ -712,51 +646,6 @@ const Dashboard = () => {
         </button>
       </section>
 
-      {/* Debug Console */}
-      {process.env.NODE_ENV === 'development' && (
-        <section className="bg-gray-900 text-green-400 p-4 rounded text-xs max-w-4xl w-full">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold text-green-300">Debug Console</h3>
-            <button
-              onClick={() => setDebugInfo([])}
-              className="px-2 py-1 bg-red-600 text-white rounded text-xs"
-              aria-label="Clear debug console"
-            >
-              Clear
-            </button>
-          </div>
-          <div className="max-h-40 overflow-y-auto space-y-1">
-            {debugInfo.map((msg, index) => (
-              <div key={index} className="font-mono">{msg}</div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* System Status */}
-      {process.env.NODE_ENV === 'development' && (
-        <section className="bg-gray-100 p-4 rounded text-sm max-w-md">
-          <h3 className="font-bold">System Status</h3>
-          <p>ESP32 IP: {espIp}</p>
-          <p>Connected: {isConnected ? 'Yes' : 'No'}</p>
-          <p>Temperature: {temperature}°C</p>
-          <p>Humidity: {humidity}%</p>
-          <p>Air Quality: {mq135} ppm</p>
-          <p>pH: {ph}</p>
-          <p>Distance: {distance} cm</p>
-          <hr className="my-2" />
-          <p>Fan: {fan ? 'ON' : 'OFF'}</p>
-          <p>Pump 1: {pump1 ? 'ON' : 'OFF'}</p>
-          <p>Pump 2: {pump2 ? 'ON' : 'OFF'}</p>
-          <p>LED: {led ? 'ON' : 'OFF'}</p>
-          <p>Stepper: {stepperEnabled ? 'ENABLED' : 'DISABLED'}</p>
-          <p>Move Distance: {moveDistance}mm</p>
-          <p className="text-xs text-gray-500">Note: ESP32 uses inverted logic (0=ON, 1=OFF)</p>
-          {lastUpdate && (
-            <p>Last Update: {lastUpdate.toLocaleString()}</p>
-          )}
-        </section>
-      )}
     </div>
   );
 };

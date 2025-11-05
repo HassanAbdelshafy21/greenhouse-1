@@ -78,7 +78,7 @@ function RegisterForm() {
               description: "You can now login",
               action: {
                 label: "Undo",
-                onClick: () => console.log("Undo"),
+                onClick: () => {},
               },
             });
 
@@ -91,7 +91,7 @@ function RegisterForm() {
               description: "Error Creating Account",
               action: {
                 label: "Undo",
-                onClick: () => console.log("Undo"),
+                onClick: () => {},
               },
             });
           },
@@ -102,14 +102,12 @@ function RegisterForm() {
         description: error as string,
         action: {
           label: "Undo",
-          onClick: () => console.log("Undo"),
+          onClick: () => {},
         },
       });
     } finally {
       setIsLoading(false);
     }
-
-    /* console.log(payload); */
   }
 
   return (

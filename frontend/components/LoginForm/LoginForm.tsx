@@ -58,7 +58,7 @@ function LoginForm() {
         toast("Login Successfully", {
           action: {
             label: "Undo",
-            onClick: () => console.log("Undo"),
+            onClick: () => {},
           },
         });
 
@@ -70,7 +70,7 @@ function LoginForm() {
           description: "Invalid Credentials",
           action: {
             label: "Undo",
-            onClick: () => console.log("Undo"),
+            onClick: () => {},
           },
         });
       }
@@ -79,14 +79,12 @@ function LoginForm() {
         description: error as string,
         action: {
           label: "Undo",
-          onClick: () => console.log("Undo"),
+          onClick: () => {},
         },
       });
     } finally {
       setIsLoading(false);
     }
-
-    console.log(payload);
   }
 
   return (
